@@ -82,9 +82,9 @@ if __name__ == "__main__":
     unknown_token = '<unk>'
 
     # ラベルファイルの存在するフォルダ
-    label_dir_train = '../data/label/train_small'
-    label_dir_dev = '../data/label/dev'
-    label_dir_test = '../data/label/test'
+    label_dir_train = './data/label/train_small'
+    label_dir_dev = './data/label/dev'
+    label_dir_test = './data/label/test'
 
     # 実験ディレクトリ
     # train_smallを使った時とtrain_largeを使った時で
@@ -100,6 +100,7 @@ if __name__ == "__main__":
         out_dir = os.path.join(output_dir, unit)
 
         # 出力ディレクトリが存在しない場合は作成する
+        print(f"### {out_dir} Created ###")
         os.makedirs(out_dir, exist_ok=True)
 
         #
