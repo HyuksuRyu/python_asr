@@ -11,6 +11,7 @@ import numpy as np
 import json
 
 import sys
+from multiprocessing import Lock
 
 class MonoPhoneHMM():
     ''' HMMクラス
@@ -68,6 +69,10 @@ class MonoPhoneHMM():
         self.track = None
         # ビタビアルゴリズムによるスコア
         self.viterbi_score = 0
+
+        # For sharing parameters and locks
+        self.trans_lock = Lock()
+        self.pdf_lock = Lock()
 
     def make_proto(self,
                    phone_list,
@@ -389,37 +394,39 @@ class MonoPhoneHMM():
         ''' accumulators (パラメータ更新に必要な変数)
             を初期化する
         '''
-        # GMMを更新するためのaccumulators
-        self.pdf_accumulators = []
-        for p in range(self.num_phones):
-            tmp_p = []
-            for s in range(self.num_states):
-                tmp_s = []
-                for m in range(self.num_mixture):
-                    pdf_stats = {}
-                    pdf_stats['weight'] = \
-                        {'num': self.LZERO, 
-                         'den': self.LZERO}
-                    pdf_stats['mu'] = \
-                        {'num': np.zeros(self.num_dims),
-                         'den': self.LZERO}
-                    pdf_stats['var'] = \
-                        {'num': np.zeros(self.num_dims),
-                         'den': self.LZERO}
-                    tmp_s.append(pdf_stats)
-                tmp_p.append(tmp_s)
-            self.pdf_accumulators.append(tmp_p)
+        with self.pdf_lock:
+            # GMMを更新するためのaccumulators
+            self.pdf_accumulators = []
+            for p in range(self.num_phones):
+                tmp_p = []
+                for s in range(self.num_states):
+                    tmp_s = []
+                    for m in range(self.num_mixture):
+                        pdf_stats = {}
+                        pdf_stats['weight'] = \
+                            {'num': self.LZERO, 
+                            'den': self.LZERO}
+                        pdf_stats['mu'] = \
+                            {'num': np.zeros(self.num_dims),
+                            'den': self.LZERO}
+                        pdf_stats['var'] = \
+                            {'num': np.zeros(self.num_dims),
+                            'den': self.LZERO}
+                        tmp_s.append(pdf_stats)
+                    tmp_p.append(tmp_s)
+                self.pdf_accumulators.append(tmp_p)
         
-        # 遷移確率を更新するためのaccumulators
-        self.trans_accumulators = []
-        for p in range(self.num_phones):
-            tmp_p = []
-            for s in range(self.num_states):
-                trans_stats = \
-                    {'num': np.ones(2) * self.LZERO, 
-                     'den': self.LZERO}
-                tmp_p.append(trans_stats)
-            self.trans_accumulators.append(tmp_p)
+        with self.trans_lock:
+            # 遷移確率を更新するためのaccumulators
+            self.trans_accumulators = []
+            for p in range(self.num_phones):
+                tmp_p = []
+                for s in range(self.num_states):
+                    trans_stats = \
+                        {'num': np.ones(2) * self.LZERO, 
+                        'den': self.LZERO}
+                    tmp_p.append(trans_stats)
+                self.trans_accumulators.append(tmp_p)
 
 
     def update_accumulators(self, feat, label):
@@ -441,79 +448,80 @@ class MonoPhoneHMM():
             for l in range(label_len):
                 p = label[l]
                 for s in range(self.num_states):
-                    if t == 0 and l == 0 and s == 0:
-                        # t=0の時は必ず先頭の状態
-                        # (対数確率なのでlog(1)=0)
-                        lconst = 0
-                    elif t == 0:
-                        # t=0で先頭の状態でない場合は
-                        # 確率ゼロなのでスキップ
-                        continue   
-                    elif s > 0:
-                        # t>0 で先頭の状態でない場合
-                        # 自己ループ
-                        lconst = self.alpha[l][s][t-1] \
-                               + self.trans[p][s][0]
-                        # 一つ前の状態からの遷移を考慮
-                        tmp = self.alpha[l][s-1][t-1] \
-                            + self.trans[p][s-1][1]
-                        # 自己ループとの和を計算
-                        if tmp > self.LSMALL:
-                            lconst = self.logadd(lconst, 
-                                                 tmp)
-                    elif l > 0:
-                        # t>0 先頭の音素ではなく，
-                        # かつ先頭の状態の場合
-                        # 自己ループ
-                        lconst = self.alpha[l][s][t-1] \
-                               + self.trans[p][s][0]
-                        # 一つ前の音素の終端状態から遷移
-                        prev_p = label[l-1]
-                        tmp = self.alpha[l-1][-1][t-1] \
-                            + self.trans[prev_p][-1][1]
-                        # 自己ループとの和を計算
-                        if tmp > self.LSMALL:
-                            lconst = self.logadd(lconst, 
-                                                 tmp)
-                    else:
-                        # 先頭の音素かつ先頭の状態の場合
-                        # 自己ループのみ
-                        lconst = self.alpha[l][s][t-1] \
-                               + self.trans[p][s][0]
-                    
-                    # 後ろ向き確率と1/Pを加える
-                    lconst += self.beta[l][s][t] \
-                           - self.loglikelihood
-                    # accumulatorsの更新
-                    for m in range(self.num_mixture):
-                        pdf = self.pdf[p][s][m]
-                        L = lconst \
-                          + np.log(pdf['weight']) \
-                          + self.elem_prob[l][s][m][t]
+                    with self.pdf_lock:
+                        if t == 0 and l == 0 and s == 0:
+                            # t=0の時は必ず先頭の状態
+                            # (対数確率なのでlog(1)=0)
+                            lconst = 0
+                        elif t == 0:
+                            # t=0で先頭の状態でない場合は
+                            # 確率ゼロなのでスキップ
+                            continue   
+                        elif s > 0:
+                            # t>0 で先頭の状態でない場合
+                            # 自己ループ
+                            lconst = self.alpha[l][s][t-1] \
+                                + self.trans[p][s][0]
+                            # 一つ前の状態からの遷移を考慮
+                            tmp = self.alpha[l][s-1][t-1] \
+                                + self.trans[p][s-1][1]
+                            # 自己ループとの和を計算
+                            if tmp > self.LSMALL:
+                                lconst = self.logadd(lconst, 
+                                                    tmp)
+                        elif l > 0:
+                            # t>0 先頭の音素ではなく，
+                            # かつ先頭の状態の場合
+                            # 自己ループ
+                            lconst = self.alpha[l][s][t-1] \
+                                + self.trans[p][s][0]
+                            # 一つ前の音素の終端状態から遷移
+                            prev_p = label[l-1]
+                            tmp = self.alpha[l-1][-1][t-1] \
+                                + self.trans[prev_p][-1][1]
+                            # 自己ループとの和を計算
+                            if tmp > self.LSMALL:
+                                lconst = self.logadd(lconst, 
+                                                    tmp)
+                        else:
+                            # 先頭の音素かつ先頭の状態の場合
+                            # 自己ループのみ
+                            lconst = self.alpha[l][s][t-1] \
+                                + self.trans[p][s][0]
                         
-                        pdf_accum = self.pdf_accumulators[p][s][m]
-                        # 平均値ベクトル更新式の分子は
-                        # 対数を取らない
-                        pdf_accum['mu']['num'] += \
-                            np.exp(L) * feat[t]
-                        # 分母は対数上で更新
-                        if L > self.LSMALL:
-                            pdf_accum['mu']['den'] = \
-                                self.logadd(pdf_accum['mu']['den'], 
-                                            L)
-                        # 対角共分散更新式の分子は
-                        # 対数を取らない
-                        dev = feat[t] - pdf['mu']
-                        pdf_accum['var']['num'] += \
-                            np.exp(L) * (dev**2)
-                        # 分母は平均値のものと同じ値
-                        pdf_accum['var']['den'] = \
-                            pdf_accum['mu']['den']
+                        # 後ろ向き確率と1/Pを加える
+                        lconst += self.beta[l][s][t] \
+                            - self.loglikelihood
+                        # accumulatorsの更新
+                        for m in range(self.num_mixture):
+                            pdf = self.pdf[p][s][m]
+                            L = lconst \
+                            + np.log(pdf['weight']) \
+                            + self.elem_prob[l][s][m][t]
+                            
+                            pdf_accum = self.pdf_accumulators[p][s][m]
+                            # 平均値ベクトル更新式の分子は
+                            # 対数を取らない
+                            pdf_accum['mu']['num'] += \
+                                np.exp(L) * feat[t]
+                            # 分母は対数上で更新
+                            if L > self.LSMALL:
+                                pdf_accum['mu']['den'] = \
+                                    self.logadd(pdf_accum['mu']['den'], 
+                                                L)
+                            # 対角共分散更新式の分子は
+                            # 対数を取らない
+                            dev = feat[t] - pdf['mu']
+                            pdf_accum['var']['num'] += \
+                                np.exp(L) * (dev**2)
+                            # 分母は平均値のものと同じ値
+                            pdf_accum['var']['den'] = \
+                                pdf_accum['mu']['den']
 
-                        # GMM重み更新式の分子は
-                        # 平均・分散の分母と同じ値
-                        pdf_accum['weight']['num'] = \
-                            pdf_accum['mu']['den']
+                            # GMM重み更新式の分子は
+                            # 平均・分散の分母と同じ値
+                            pdf_accum['weight']['num'] = \
+                                pdf_accum['mu']['den']
 
         # 遷移確率のaccumulatorsと
         # GMM重みのaccumulatorsの分母を更新
@@ -521,100 +529,101 @@ class MonoPhoneHMM():
             for l in range(label_len):
                 p = label[l]
                 for s in range(self.num_states):
-                    # GMM重みaccumulatorの分母と
-                    # 遷移確率accumulatorの分母の更新に用いる
-                    alphabeta = self.alpha[l][s][t] \
-                              + self.beta[l][s][t] \
-                              - self.loglikelihood
+                    with self.trans_lock:
+                        # GMM重みaccumulatorの分母と
+                        # 遷移確率accumulatorの分母の更新に用いる
+                        alphabeta = self.alpha[l][s][t] \
+                                + self.beta[l][s][t] \
+                                - self.loglikelihood
 
-                    # GMM重みaccumulatorの分母を更新
-                    for m in range(self.num_mixture):
-                        pdf_accum = \
-                            self.pdf_accumulators[p][s][m]
-                        # 分母は全てのmで同じ値なので、
-                        # m==0のときのみ計算
-                        if m == 0:
-                            if alphabeta > self.LSMALL:
+                        # GMM重みaccumulatorの分母を更新
+                        for m in range(self.num_mixture):
+                            pdf_accum = \
+                                self.pdf_accumulators[p][s][m]
+                            # 分母は全てのmで同じ値なので、
+                            # m==0のときのみ計算
+                            if m == 0:
+                                if alphabeta > self.LSMALL:
+                                    pdf_accum['weight']['den'] = \
+                                        self.logadd(\
+                                            pdf_accum['weight']['den'],
+                                            alphabeta)
+                            else:
+                                tmp = self.pdf_accumulators[p][s][0]
                                 pdf_accum['weight']['den'] = \
-                                    self.logadd(\
-                                        pdf_accum['weight']['den'],
-                                        alphabeta)
+                                    tmp['weight']['den']
+
+                        # 遷移確率accumulatorの分母を更新
+                        trans_accum = self.trans_accumulators[p][s]
+                        if t < feat_len - 1 \
+                                and alphabeta > self.LSMALL:
+                            trans_accum['den'] = \
+                                self.logadd(trans_accum['den'],
+                                            alphabeta)
+
+                        #
+                        # 以下は遷移確率accumulatorの分子の更新
+                        #
+                        if t == feat_len - 1:
+                            # 最終フレームはスキップ
+                            continue
+                        elif s < self.num_states - 1:
+                            # 各音素の非終端状態の場合
+                            # 自己ループ
+                            tmp = self.alpha[l][s][t] \
+                                + self.trans[p][s][0] \
+                                + self.state_prob[l][s][t+1] \
+                                + self.beta[l][s][t+1] \
+                                - self.loglikelihood
+                            if tmp > self.LSMALL:
+                                trans_accum['num'][0] = \
+                                    self.logadd(trans_accum['num'][0],
+                                                tmp)
+
+                            # 遷移
+                            tmp = self.alpha[l][s][t] \
+                                + self.trans[p][s][1] \
+                                + self.state_prob[l][s+1][t+1] \
+                                + self.beta[l][s+1][t+1] \
+                                - self.loglikelihood
+                            if tmp > self.LSMALL:
+                                trans_accum['num'][1] = \
+                                    self.logadd(trans_accum['num'][1],
+                                                tmp)
+                        elif l < label_len - 1:
+                            # 終端状態かつ非終端音素
+                            # 自己ループ
+                            tmp = self.alpha[l][s][t] \
+                                + self.trans[p][s][0] \
+                                + self.state_prob[l][s][t+1] \
+                                + self.beta[l][s][t+1] \
+                                - self.loglikelihood
+                            if tmp > self.LSMALL:
+                                trans_accum['num'][0] = \
+                                    self.logadd(trans_accum['num'][0],
+                                                tmp)
+                            # 次の音素の始端状態への遷移
+                            tmp = self.alpha[l][s][t] \
+                                + self.trans[p][s][1] \
+                                + self.state_prob[l+1][0][t+1] \
+                                + self.beta[l+1][0][t+1] \
+                                - self.loglikelihood
+                            if tmp > self.LSMALL:
+                                trans_accum['num'][1] = \
+                                    self.logadd(trans_accum['num'][1],
+                                                tmp)
                         else:
-                            tmp = self.pdf_accumulators[p][s][0]
-                            pdf_accum['weight']['den'] = \
-                                tmp['weight']['den']
-
-                    # 遷移確率accumulatorの分母を更新
-                    trans_accum = self.trans_accumulators[p][s]
-                    if t < feat_len - 1 \
-                            and alphabeta > self.LSMALL:
-                        trans_accum['den'] = \
-                            self.logadd(trans_accum['den'],
-                                        alphabeta)
-
-                    #
-                    # 以下は遷移確率accumulatorの分子の更新
-                    #
-                    if t == feat_len - 1:
-                        # 最終フレームはスキップ
-                        continue
-                    elif s < self.num_states - 1:
-                        # 各音素の非終端状態の場合
-                        # 自己ループ
-                        tmp = self.alpha[l][s][t] \
-                            + self.trans[p][s][0] \
-                            + self.state_prob[l][s][t+1] \
-                            + self.beta[l][s][t+1] \
-                            - self.loglikelihood
-                        if tmp > self.LSMALL:
-                            trans_accum['num'][0] = \
-                                self.logadd(trans_accum['num'][0],
-                                            tmp)
-
-                        # 遷移
-                        tmp = self.alpha[l][s][t] \
-                            + self.trans[p][s][1] \
-                            + self.state_prob[l][s+1][t+1] \
-                            + self.beta[l][s+1][t+1] \
-                            - self.loglikelihood
-                        if tmp > self.LSMALL:
-                            trans_accum['num'][1] = \
-                                self.logadd(trans_accum['num'][1],
-                                            tmp)
-                    elif l < label_len - 1:
-                        # 終端状態かつ非終端音素
-                        # 自己ループ
-                        tmp = self.alpha[l][s][t] \
-                            + self.trans[p][s][0] \
-                            + self.state_prob[l][s][t+1] \
-                            + self.beta[l][s][t+1] \
-                            - self.loglikelihood
-                        if tmp > self.LSMALL:
-                            trans_accum['num'][0] = \
-                                self.logadd(trans_accum['num'][0],
-                                            tmp)
-                        # 次の音素の始端状態への遷移
-                        tmp = self.alpha[l][s][t] \
-                            + self.trans[p][s][1] \
-                            + self.state_prob[l+1][0][t+1] \
-                            + self.beta[l+1][0][t+1] \
-                            - self.loglikelihood
-                        if tmp > self.LSMALL:
-                            trans_accum['num'][1] = \
-                                self.logadd(trans_accum['num'][1],
-                                            tmp)
-                    else:
-                        # 最終状態
-                        # 自己ループ
-                        tmp = self.alpha[l][s][t] \
-                            + self.trans[p][s][0] \
-                            + self.state_prob[l][s][t+1] \
-                            + self.beta[l][s][t+1] \
-                            - self.loglikelihood
-                        if tmp > self.LSMALL:
-                            trans_accum['num'][0] = \
-                                self.logadd(trans_accum['num'][0],
-                                            tmp)
+                            # 最終状態
+                            # 自己ループ
+                            tmp = self.alpha[l][s][t] \
+                                + self.trans[p][s][0] \
+                                + self.state_prob[l][s][t+1] \
+                                + self.beta[l][s][t+1] \
+                                - self.loglikelihood
+                            if tmp > self.LSMALL:
+                                trans_accum['num'][0] = \
+                                    self.logadd(trans_accum['num'][0],
+                                                tmp)
 
 
     def update_parameters(self):
@@ -624,8 +633,9 @@ class MonoPhoneHMM():
             for s in range(self.num_states):
                 # 遷移確率の更新
                 trans_accum = self.trans_accumulators[p][s]
-                self.trans[p][s] = \
-                    trans_accum['num'] - trans_accum['den']
+                self.trans[p][s] = trans_accum['num'] - trans_accum['den']
+                ##self.trans[p][s] = \
+                ##    trans_accum['num'] - trans_accum['den']
                 # 確率総和が1になるよう正規化
                 tmp = self.logadd(self.trans[p][s][0], 
                                   self.trans[p][s][1])
@@ -633,25 +643,27 @@ class MonoPhoneHMM():
                 for m in range(self.num_mixture):
                     pdf = self.pdf[p][s][m]
                     pdf_accum = self.pdf_accumulators[p][s][m]
-                    # 平均値ベクトルの更新
-                    den = np.exp(pdf_accum['mu']['den'])
-                    if den > 0:
-                        pdf['mu'] = pdf_accum['mu']['num'] / den
-                    # 対角共分散の更新
-                    den = np.exp(pdf_accum['var']['den'])
-                    if den > 0:
-                        pdf['var'] = pdf_accum['var']['num'] / den
-                    # 分散のフロアリング
-                    pdf['var'][pdf['var'] < self.MINVAR] = \
-                        self.MINVAR
-                    # gConst項の更新
-                    gconst = self.calc_gconst(pdf['var'])
-                    pdf['gConst'] = gconst
 
-                    # GMM重みの更新
-                    tmp = pdf_accum['weight']['num'] - \
-                        pdf_accum['weight']['den']
-                    pdf['weight'] = np.exp(tmp)
+                    with self.pdf_lock:
+                        # 平均値ベクトルの更新
+                        den = np.exp(pdf_accum['mu']['den'])
+                        if den > 0:
+                            pdf['mu'] = pdf_accum['mu']['num'] / den
+                        # 対角共分散の更新
+                        den = np.exp(pdf_accum['var']['den'])
+                        if den > 0:
+                            pdf['var'] = pdf_accum['var']['num'] / den
+                        # 分散のフロアリング
+                        pdf['var'][pdf['var'] < self.MINVAR] = \
+                            self.MINVAR
+                        # gConst項の更新
+                        gconst = self.calc_gconst(pdf['var'])
+                        pdf['gConst'] = gconst
+
+                        # GMM重みの更新
+                        tmp = pdf_accum['weight']['num'] - \
+                            pdf_accum['weight']['den']
+                        pdf['weight'] = np.exp(tmp)
                 # GMM重みの総和が1になるよう正規化    
                 wsum = 0.0
                 for m in range(self.num_mixture):

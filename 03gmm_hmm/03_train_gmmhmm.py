@@ -24,28 +24,30 @@ if __name__ == "__main__":
 
     # 訓練データの特徴量リストのファイル
     feat_scp = \
-        '../01compute_features/mfcc/train_small/feats.scp'
+        '../01compute_features/mfcc/train_large/feats.scp'
+        #'../01compute_features/mfcc/train_small/feats.scp'
 
     # 訓練データのラベルファイル
     label_file = \
-        './exp/data/train_small/text_int'
+        './exp/data/train_large/text_int'
+        #'./exp/data/train_small/text_int'
 
     # 学習結果を保存していくフォルダ
-    work_dir = './exp'
+    work_dir = './exp/test'
 
     # 更新回数
-    num_iter = 10
+    num_iter = 100 #10
 
     # 混合数を増やす回数
     # 増やすたびに混合数は2倍になる
     # 最終的な混合数は2^(mixup_time)となる
     # 更新回数はnum_iter*(mixup_time+1)
-    mixup_time = 1
+    mixup_time = 5 #1
 
     # 学習に用いる発話数
     # 実際は全ての発話を用いるが，時間がかかるため
     # このプログラムでは一部の発話のみを使っている
-    num_utters = 50
+    num_utters = 50 #50
 
     #
     # 処理ここから

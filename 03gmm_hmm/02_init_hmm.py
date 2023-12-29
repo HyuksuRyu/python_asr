@@ -20,11 +20,13 @@ import os
 if __name__ == "__main__":
 
     # HMMプロトタイプ
+    #hmmproto = './exp/model_smm_3state_1mix/hmmproto'
     hmmproto = './exp/model_3state_1mix/hmmproto'
 
     # 学習データの特徴量の平均/標準偏差ファイル
     mean_std_file = \
-        '../01compute_features/mfcc/train_small/mean_std.txt'
+        '../01compute_features/mfcc/train_large/mean_std.txt'
+        #'../01compute_features/mfcc/train_small/mean_std.txt'
 
     # 出力ディレクトリ
     out_dir = os.path.dirname(hmmproto)

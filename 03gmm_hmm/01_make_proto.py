@@ -19,7 +19,8 @@ if __name__ == "__main__":
 
     # 音素リスト
     phone_list_file = \
-        './exp/data/train_small/phone_list'
+        './exp/data/train_large/phone_list'
+        #'./exp/data/train_small/phone_list'
 
     # 各音素HMMの状態数
     num_states = 3
@@ -35,6 +36,7 @@ if __name__ == "__main__":
     # 出力フォルダ
     out_dir = \
       './exp/model_%dstate_1mix' % (num_states)
+      #'./exp/model_%dstate_1mix' % (num_states)
 
     #
     # 処理ここから

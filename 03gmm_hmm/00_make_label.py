@@ -7,6 +7,7 @@
 
 # osモジュールをインポート
 import os
+import sys
 
 def phone_to_int(label_str, 
                  label_int, 
@@ -45,8 +46,7 @@ def phone_to_int(label_str,
             for u in text[1:]:
                 # 音素リストに無い場合はエラー
                 if not u in phone_list:
-                    sys.stderr.write('phone_to_int: \
-                        unknown phone %s\n' % u)
+                    sys.stderr.write('phone_to_int: unknown phone %s\n' % u)
                     exit(1)
                 # 音素のインデクスを出力
                 f_out.write(' %d' % \
@@ -66,11 +66,13 @@ def phone_to_int(label_str,
 if __name__ == "__main__":
     # 訓練データのラベルファイルのパス
     label_train_str = \
-        '../data/label/train_small/text_phone'
+        '../data/label/train_large/text_phone'
+        #'../data/label/train_small/text_phone'
 
     # 訓練データの処理結果の出力先ディレクトリ
     out_train_dir = \
-        './exp/data/train_small'
+        './exp/data/train_large'
+        #'./exp/data/train_small'
 
     # 開発データのラベルファイルのパス
     # (開発データはGMM-HMMには使いませんが，
