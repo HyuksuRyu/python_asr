@@ -44,15 +44,18 @@ if __name__ == "__main__":
 
     # 訓練データの特徴量リスト
     train_feat_scp = \
-        '../01compute_features/mfcc/train_small/feats.scp'
+        '../01compute_features/mfcc/train_large/feats.scp'
+        #'../01compute_features/mfcc/train_small/feats.scp'
     # 訓練データのラベル(アライメント)ファイル
     train_label_file = \
-        './exp/data/train_small/alignment'
+        './exp/data/train_large/alignment'
+        #'./exp/data/train_small/alignment'
     
     # 訓練データから計算された
     # 特徴量の平均/標準偏差ファイル
     mean_std_file = \
-        '../01compute_features/mfcc/train_small/mean_std.txt'
+        '../01compute_features/mfcc/train_large/mean_std.txt'
+        #'../01compute_features/mfcc/train_small/mean_std.txt'
 
     # 開発データの特徴量リスト
     dev_feat_scp = \
@@ -64,19 +67,19 @@ if __name__ == "__main__":
     # HMMファイル
     # HMMファイルは音素数と状態数の
     # 情報を得るためだけに使う
-    hmm_file = '../03gmm_hmm/exp/model_3state_2mix/10.hmm'
+    hmm_file = '../03gmm_hmm/exp/model_3state_2mix/16.hmm'
 
     # 学習結果を出力するディレクトリ
     output_dir = os.path.join('exp', 'model_dnn')
 
     # ミニバッチに含める発話数
-    batch_size = 5
+    batch_size = 20 #5
 
     # 最大エポック数
-    max_num_epoch = 60
+    max_num_epoch = 120
 
     # 中間層のレイヤー数
-    num_layers = 4
+    num_layers = 6 #4
 
     # 中間層の次元数
     hidden_dim = 1024

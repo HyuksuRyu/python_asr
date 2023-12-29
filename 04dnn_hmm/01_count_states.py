@@ -21,11 +21,12 @@ import os
 if __name__ == "__main__":
 
     # HMMファイル
-    hmm_file = '../03gmm_hmm/exp/model_3state_2mix/10.hmm'
+    hmm_file = '../03gmm_hmm/exp/model_3state_2mix/16.hmm'
 
     # 訓練データのアライメントファイル
     align_file = \
-        './exp/data/train_small/alignment'
+        './exp/data/train_large/alignment'
+        #'./exp/data/train_small/alignment'
 
     # 計算した事前確率ファイル
     count_file = \

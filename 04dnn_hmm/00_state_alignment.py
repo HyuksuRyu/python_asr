@@ -25,21 +25,24 @@ if __name__ == "__main__":
 
     # 訓練データの特徴量リストのファイル
     train_feat_scp = \
-        '../01compute_features/mfcc/train_small/feats.scp'
+        '../01compute_features/mfcc/train_large/feats.scp'
+        #'../01compute_features/mfcc/train_small/feats.scp'
     # 開発データの特徴量リストのファイル
     dev_feat_scp = \
         '../01compute_features/mfcc/dev/feats.scp'
 
     # 訓練データのラベルファイル
     train_label_file = \
-        '../03gmm_hmm/exp/data/train_small/text_int'
+        '../03gmm_hmm/exp/data/train_large/text_int'
+        #'../03gmm_hmm/exp/data/train_small/text_int'
     # 開発データのラベルファイル
     dev_label_file = \
         '../03gmm_hmm/exp/data/dev/text_int'
 
     # 訓練データのアライメント結果の出力ファイル
     train_align_file = \
-        './exp/data/train_small/alignment'
+        './exp/data/train_large/alignment'
+        #'./exp/data/train_small/alignment'
     # 開発データのアライメント結果の出力ファイル
     dev_align_file = \
         './exp/data/dev/alignment'
