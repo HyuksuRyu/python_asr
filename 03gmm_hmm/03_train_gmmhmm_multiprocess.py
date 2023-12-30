@@ -13,27 +13,20 @@ import numpy as np
 # os, sysモジュールをインポート
 import sys
 import os
-from multiprocessing import Pool, Lock
+from multiprocessing import Pool, Lock, Manager
+from functools import partial
 
 
 def train_parallel(args):
     """Function to be run in parallel"""
-    hmm, feat_list, label_list, report_interval  = args
-    lock.acquire()
-    try: 
-        hmm.train(feat_list, label_list, report_interval=report_interval)
-    finally:
-        lock.release()
-
+    hmm, feat_list, label_list, report_interval , l= args
+    l.acquire()
+    hmm.train(feat_list, label_list, report_interval=report_interval)
+    l.release()
 
 def create_model_name(num_states: int, num_mixture: int) -> str:
     """Create model name"""
     return f"model_multi_{num_states}state_{num_mixture}mix"
-
-# Define Lock as global variable
-def init(l):
-    global lock
-    lock = l
 
 #
 # メイン関数
@@ -46,12 +39,12 @@ if __name__ == "__main__":
     num_cpus = 5 # 64
     print(f"Using {num_cpus} CPUs")
     
-    # Initialize lock
-    l = Lock()
-    
     # Create a pool of workers, specify the number of CPUs you want to use
-    pool = Pool(processes=num_cpus, initializer=init, initargs=(l,))
     # https://stackoverflow.com/questions/25557686/python-sharing-a-lock-between-processes
+    pool = Pool(processes=num_cpus)
+    m = Manager()
+    l = m.Lock()
+    func = partial(train_parallel, lock=l)
 
     # 学習元のHMMファイル
     base_hmm = './exp/model_multi_3state_1mix/0.hmm'
@@ -166,7 +159,7 @@ if __name__ == "__main__":
         end_idx: int = start_idx + utterances_per_batch
         batch_feat_list: dict = {k: v for k, v in list(feat_list.items())[start_idx:end_idx]}
         batch_label_list: dict = {k: v for k,v in list(label_list.items())[start_idx:end_idx]}
-        batches.append((hmm, batch_feat_list, batch_label_list, report_interval))
+        batches.append((hmm, batch_feat_list, batch_label_list, report_interval, l))
         start_idx: int = end_idx
     print(len(batches))
 
