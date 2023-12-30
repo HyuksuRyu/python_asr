@@ -54,7 +54,6 @@ if __name__ == "__main__":
     # 訓練データの特徴量リストのファイル
     feat_scp = \
         '../01compute_features/mfcc/train_large/feats.scp'
-
     # 訓練データのラベルファイル
     label_file = \
         './exp/data/train_large/text_int'
